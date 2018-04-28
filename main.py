@@ -39,9 +39,24 @@ def hello():
 def handleOptions():
   return "ok"
 
+
+@app.route("/distributions/<lang>/<id>/")
+@checkLanguage
+def getDistribution(lang: str, id: int):
+  with database.cursor() as cursor:
+    query = "Select *, (Select translation from i18n where langCode = %s and val = concat('d.', Distro.id, '.description')) as description from Distro where id = %s"
+    cursor.execute(query, (
+      lang,
+      id
+    ))
+    tuple = cursor.fetchone()
+    d = Distro()
+    d.fromTuple(tuple)    
+  return dumps(d, unpicklable=False)
+
 @app.route("/distributions/<lang>/")
 @checkLanguage
-def getDistribution(lang: str):
+def getDistributions(lang: str):
   result = []
   with database.cursor() as cursor:
     query = "Select *, (Select translation from i18n where langCode = %s and val = concat('d.', Distro.id, '.description')) as description from Distro"
@@ -51,15 +66,35 @@ def getDistribution(lang: str):
     tuples = cursor.fetchall()
     for tuple in tuples:
       d = Distro()
-      for key, value in tuple.items():
-        if hasattr(d, key) and key != "tags":
-          setattr(d, key, value)
-        elif key == "tags":
-          setattr(d, key, loads(value))
+      d.fromTuple(tuple)   
       result.append(d)        
   return dumps(result, unpicklable=False)
 
+@app.route("/questions/<lang>/")
+@checkLanguage
+def getQuestions(lang: str):
+  result = []
+  with database.cursor() as cursor:
+    query = "Select * from Question order by orderIndex"
+    cursor.execute(query)
+    tuples = cursor.fetchall()
 
+    
+    for tuple in tuples:
+      q = Question()
+      q.fromTuple(tuple)
+      i18nQuery = "Select * from i18n where val like 'q.%s.%%' and langCode = %s"
+      cursor.execute(i18nQuery, (
+        tuple["id"],
+        lang,
+      ))
+      translations = cursor.fetchall()
+      for translation in translations:
+        for needle in ["title", "text"]:
+          if "." + needle in translation["val"]:
+            setattr(q, needle,translation["translation"])
+      result.append(q)        
+  return dumps(result, unpicklable=False)
 
 @app.after_request
 def addCors(response: Response):

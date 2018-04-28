@@ -1,3 +1,17 @@
+from jsonpickle import loads
+
+
+class Base():
+  def fromTuple(self, tuple: dict):
+    for key, value in tuple.items():
+      if hasattr(self, key) and key != "tags":
+        if isinstance(getattr(self, key), bool):
+          setattr(self, key, (False, True)[value == 1])
+        else:
+          setattr(self, key, value)
+      elif key == "tags":
+        setattr(self, key, loads(value))     
+
 class Visitor():
   """
   Client related data
@@ -19,7 +33,7 @@ class Tag():
   amount: int = 0
   negative: bool = False
 
-class Distro():
+class Distro(Base):
   id: int = 0
   name: str = ""
   website: str = ""
@@ -28,8 +42,9 @@ class Distro():
   image: str = ""
   tags: list() = list() # of string
   description: str = ""
+  
 
-class Question():
+class Question(Base):
   id: int = 0
   orderIndex: int = 0
   text: str = ""
