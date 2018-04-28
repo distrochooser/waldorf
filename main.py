@@ -3,6 +3,7 @@ from functools import wraps
 from core.classes import Visitor, Tag, Result, Distro, Question, Answer
 import argparse
 import pymysql.cursors
+from datetime import datetime
 from jsonpickle import loads, dumps
 
 
@@ -54,9 +55,8 @@ def getDistribution(lang: str, id: int):
     d.fromTuple(tuple)    
   return dumps(d, unpicklable=False)
 
-@app.route("/distributions/<lang>/")
-@checkLanguage
-def getDistributions(lang: str):
+
+def queryDistributions(lang: str):
   result = []
   with database.cursor() as cursor:
     query = "Select *, (Select translation from i18n where langCode = %s and val = concat('d.', Distro.id, '.description')) as description from Distro"
@@ -68,7 +68,13 @@ def getDistributions(lang: str):
       d = Distro()
       d.fromTuple(tuple)   
       result.append(d)        
-  return dumps(result, unpicklable=False)
+  return result
+
+
+@app.route("/distributions/<lang>/")
+@checkLanguage
+def getDistributions(lang: str):
+  return dumps(queryDistributions(lang), unpicklable=False)
 
 def getAnswersForQuestion(lang: str, question:id ) -> list():
   result = []
@@ -95,9 +101,7 @@ def getAnswersForQuestion(lang: str, question:id ) -> list():
       result.append(a)        
   return result
 
-@app.route("/questions/<lang>/")
-@checkLanguage
-def getQuestions(lang: str):
+def queryQuestions(lang: str):
   result = []
   with database.cursor() as cursor:
     query = "Select * from Question order by orderIndex"
@@ -122,7 +126,43 @@ def getQuestions(lang: str):
           if "." + needle in translation["val"]:
             setattr(q, needle,translation["translation"])
       result.append(q)        
-  return dumps(result, unpicklable=False)
+  return result
+
+@app.route("/questions/<lang>/")
+@checkLanguage
+def getQuestions(lang: str):
+  return dumps(queryQuestions(lang), unpicklable=False)
+
+@app.route("/addresult/<lang>/<rating>/<visitor>/", methods=["POST"])
+def addResult(lang: str, rating: int, visitor: int):
+  body = request.get_json(silent=True)
+  with database.cursor() as cursor:
+    query = "Insert into Result (rating, visitorId, lang) values (%s, %s, %s)"
+    cursor.execute(query, (
+      rating,
+      visitor,
+      lang
+    ))
+    resultId = cursor.lastrowid
+    #insert answers
+    for answer in body["answers"]:
+      query = "Insert into ResultAnswers (resultId, answer) VALUES (%s,%s)"
+      cursor.execute(query, (
+        resultId,
+        answer
+      ))
+    for tag in body["tags"]:
+      query = "Insert into ResultTags (resultId, tag,weight,isNegative,amount) VALUES (%s,%s, %s, %s, %s)"
+      cursor.execute(query, (
+        resultId,
+        tag["name"],
+        tag["weight"],
+        tag["negative"],
+        tag["amount"]
+      ))
+    database.commit() 
+  return str(resultId)
+
 
 @app.route("/getresult/<id>/")
 def getResult(id: int):
@@ -152,6 +192,45 @@ def getResult(id: int):
       r.tags.append(t)
 
   return dumps(r, unpicklable=False)
+
+@app.route("/get/<lang>/", methods=["POST"])
+@checkLanguage
+def newVisitor(lang: str):
+  with database.cursor() as cursor:
+    visitorData = request.get_json(silent=True)
+    query = "Insert into Visitor (visitDate, userAgent, referrer, lang, prerender) VALUES (%s, %s, %s, %s, %s)"
+    visitDate = datetime.now()
+    userAgent = request.headers.get("user-agent")
+    referrer = request.headers.get("referrer")
+    prerender = visitorData["prerender"]
+    got = cursor.execute(query, (
+      visitDate,
+      userAgent,
+      referrer,
+      lang,
+      prerender
+    ))
+
+    v = Visitor()
+    v.id = cursor.lastrowid
+    v.useragent = userAgent
+    v.visitDate = visitDate
+    v.referrer = referrer
+    v.questions = queryQuestions(lang)
+    v.distributions = queryDistributions(lang)
+    query = "Select * from i18n where langCode = %s and val not like 'd.%%' and val not like 'a.%%' and val not like 'q.%%'"
+    cursor.execute(query, (
+      lang
+    ))
+    v.i18n = {}
+    results = cursor.fetchall()
+    for tuple in results:
+      v.i18n[tuple["val"]] = tuple["translation"]
+
+    database.commit()
+  return dumps(v, unpicklable=False)
+
+
 @app.after_request
 def addCors(response: Response):
   """

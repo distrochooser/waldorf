@@ -20,6 +20,8 @@ class Visitor():
   useragent: str = ""
   referrer: str = ""
   prerender: bool = False
+  id: int = 0
+  i18n: dict = dict()
 
 class Result():
   """
