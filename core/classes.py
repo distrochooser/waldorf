@@ -4,13 +4,14 @@ from jsonpickle import loads
 class Base():
   def fromTuple(self, tuple: dict):
     for key, value in tuple.items():
-      if hasattr(self, key) and key != "tags":
+      if key in ["tags", "excludedBy", "excludeTags"]:
+        setattr(self, key, loads(value))     
+      elif hasattr(self, key) and key != "tags":
         if isinstance(getattr(self, key), bool):
           setattr(self, key, (False, True)[value == 1])
         else:
           setattr(self, key, value)
-      elif key == "tags":
-        setattr(self, key, loads(value))     
+     
 
 class Visitor():
   """
@@ -55,7 +56,7 @@ class Question(Base):
   answers: list() # of Answer
   answered: bool = False
 
-class Answer():
+class Answer(Base):
   id: int = 0
   text: str = ""
   tags: list = list() # of string

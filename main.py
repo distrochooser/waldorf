@@ -70,6 +70,31 @@ def getDistributions(lang: str):
       result.append(d)        
   return dumps(result, unpicklable=False)
 
+def getAnswersForQuestion(lang: str, question:id ) -> list():
+  result = []
+  with database.cursor() as cursor:
+    query = "Select * from Answer where questionID = %s"
+    cursor.execute(query,  (
+      question
+    ))
+    tuples = cursor.fetchall()
+   
+    for tuple in tuples:
+      a = Answer()
+      a.fromTuple(tuple)
+      i18nQuery = "Select * from i18n where val like 'a.%s.%%' and langCode = %s"
+      cursor.execute(i18nQuery, (
+        tuple["id"],
+        lang,
+      ))
+      translations = cursor.fetchall()
+      for translation in translations:
+        for needle in ["title", "text"]:
+          if "." + needle in translation["val"]:
+            setattr(a, needle,translation["translation"])
+      result.append(a)        
+  return result
+
 @app.route("/questions/<lang>/")
 @checkLanguage
 def getQuestions(lang: str):
@@ -83,6 +108,9 @@ def getQuestions(lang: str):
     for tuple in tuples:
       q = Question()
       q.fromTuple(tuple)
+      q.answered = False
+      q.answers = getAnswersForQuestion(lang, q.id)
+      
       i18nQuery = "Select * from i18n where val like 'q.%s.%%' and langCode = %s"
       cursor.execute(i18nQuery, (
         tuple["id"],
