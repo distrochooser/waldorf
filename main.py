@@ -124,6 +124,34 @@ def getQuestions(lang: str):
       result.append(q)        
   return dumps(result, unpicklable=False)
 
+@app.route("/getresult/<id>/")
+def getResult(id: int):
+  with database.cursor() as cursor:
+    query = "Select * from ResultAnswers  where resultId = %s"
+    cursor.execute(query, (
+      id
+    ))
+    results = cursor.fetchall()
+    r = Result()
+    r.answers = []
+    for tuple in results:
+      r.answers.append(tuple["answer"])
+
+    query = "Select * from ResultTags  where resultId = %s"
+    cursor.execute(query, (
+      id
+    ))
+    results = cursor.fetchall()
+    r.tags = []
+    for tuple in results:
+      t = Tag()
+      t.name = tuple["tag"]
+      t.amount = tuple["amount"]
+      t.negative = (False, True)[tuple["isNegative"] == 1]
+      t.weight = tuple["weight"]
+      r.tags.append(t)
+
+  return dumps(r, unpicklable=False)
 @app.after_request
 def addCors(response: Response):
   """
