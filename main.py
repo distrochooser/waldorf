@@ -5,13 +5,14 @@ import argparse
 import pymysql.cursors
 from datetime import datetime
 from jsonpickle import loads, dumps
-
+from flask_cors import CORS
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--langs', help='Comma separated list of lang codes')
 args = parser.parse_args()
 
 app = Flask(__name__)
+CORS(app)
 allowLanguages = args.langs.split(",")
 
 database = pymysql.connect(
@@ -31,15 +32,6 @@ def checkLanguage(f):
       else:
         abort(404)
   return decorated_function
-
-@app.route("/")
-def hello():
-  return "Hello, I'm not that rusty"
-
-@app.route("/<path:path>", methods=['OPTIONS'])
-def handleOptions():
-  return "ok"
-
 
 @app.route("/distributions/<lang>/<id>/")
 @checkLanguage
@@ -163,6 +155,17 @@ def addResult(lang: str, rating: int, visitor: int):
     database.commit() 
   return str(resultId)
 
+@app.route("/addrating/<test>/<rating>")
+def addRating(test: int, rating: int):
+  with database.cursor() as cursor:
+    query = "Update Result set rating=%s, updated=1 where id=%s and updated =0"
+    print(query)
+    got = cursor.execute(query, (
+      rating,
+      test
+    ))
+    database.commit()
+    return dumps(got)
 
 @app.route("/getresult/<id>/")
 def getResult(id: int):
@@ -217,15 +220,15 @@ def newVisitor(lang: str):
     v.visitDate = visitDate
     v.referrer = referrer
     v.questions = queryQuestions(lang)
-    v.distributions = queryDistributions(lang)
-    query = "Select * from i18n where langCode = %s and val not like 'd.%%' and val not like 'a.%%' and val not like 'q.%%'"
+    v.distros = queryDistributions(lang)
+    query = "Select val, translation from i18n where langCode = %s and val not like 'd.%%' and val not like 'a.%%' and val not like 'q.%%'"
     cursor.execute(query, (
       lang
     ))
     v.i18n = {}
     results = cursor.fetchall()
     for tuple in results:
-      v.i18n[tuple["val"]] = tuple["translation"]
+      v.i18n[tuple["val"]] = tuple
 
     database.commit()
   return dumps(v, unpicklable=False)
@@ -239,7 +242,7 @@ def addCors(response: Response):
   headers = {
     "content-type": "application/json",
     "server": "foo",
-    "Access-Control-Allow": "*",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Method": "GET,OPTIONS,POST",
     "Access-Control-Allow-Headers": "content-type",
     "Cache-Contol": "must-revalidate, max-age=259200",

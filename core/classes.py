@@ -22,6 +22,7 @@ class Visitor():
   prerender: bool = False
   id: int = 0
   i18n: dict = dict()
+  distros: list() = None
 
 class Result():
   """
