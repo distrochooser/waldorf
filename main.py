@@ -161,7 +161,6 @@ def addResult(lang: str, rating: int, visitor: int):
 def addRating(test: int, rating: int):
   with database.cursor() as cursor:
     query = "Update Result set rating=%s, updated=1 where id=%s and updated =0"
-    print(query)
     got = cursor.execute(query, (
       rating,
       test
