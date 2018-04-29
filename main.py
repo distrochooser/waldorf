@@ -7,6 +7,7 @@ from datetime import datetime
 from jsonpickle import loads, dumps
 from flask_cors import CORS
 from flask_compress import Compress
+from os import environ
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--langs', help='Comma separated list of lang codes')
@@ -20,7 +21,7 @@ allowLanguages = args.langs.split(",")
 database = pymysql.connect(
   host="localhost",
   user="user",
-  password="test",
+  password=environ["PASS"],
   db="ldc4",
   charset="utf8",
   cursorclass=pymysql.cursors.DictCursor
@@ -261,7 +262,7 @@ try:
   app.run(
     host="0.0.0.0",
     port=8181,
-    debug=True
+    debug=False
   )
 finally:
   database.close()
