@@ -6,6 +6,7 @@ import pymysql.cursors
 from datetime import datetime
 from jsonpickle import loads, dumps
 from flask_cors import CORS
+from flask_compress import Compress
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--langs', help='Comma separated list of lang codes')
@@ -13,6 +14,7 @@ args = parser.parse_args()
 
 app = Flask(__name__)
 CORS(app)
+Compress(app)
 allowLanguages = args.langs.split(",")
 
 database = pymysql.connect(
@@ -240,8 +242,8 @@ def addCors(response: Response):
   Add needed CORS headers
   """
   headers = {
-    "content-type": "application/json",
-    "server": "foo",
+    "Content-Type": "application/json",
+    "Server": "waldorf",
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Method": "GET,OPTIONS,POST",
     "Access-Control-Allow-Headers": "content-type",
@@ -250,7 +252,10 @@ def addCors(response: Response):
     "Expires": "Sat, 26. Jul 1997 06:00:00 GMT",
   }
   for key, value in headers.items():
-    response.headers.add(key, value)
+    if response.headers.get(key) != None:
+      response.headers[key] = value
+    else:
+      response.headers.add(key, value)
   return response
 
 try:
