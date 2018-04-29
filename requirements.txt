@@ -1,0 +1,5 @@
+Flask==0.12.2
+Flask-Compress==1.4.0
+Flask-Cors==3.0.4
+PyMySQL==0.8.0
+jsonpickle==0.9.5
