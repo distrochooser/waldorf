@@ -13,8 +13,8 @@ class Base():
           setattr(self, key, value)
 
 class Statistics():
-  test: int = 0
-  visitor: int = 0
+  tests: int = 0
+  visitors: int = 0
 
 class Visitor():
   """

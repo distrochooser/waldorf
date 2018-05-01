@@ -20,7 +20,7 @@ allowLanguages = args.langs.split(",")
 
 database = pymysql.connect(
   host="localhost",
-  user="user",
+  user="root",
   password=environ["PASS"],
   db="ldc4",
   charset="utf8",
@@ -65,15 +65,15 @@ def queryDistributions(lang: str):
       result.append(d)        
   return result
 
-@app.route("/stats/")
+@app.route("/stats")
 def getStats():
   with database.cursor() as cursor:
     query = "Select count(id) as visitors, ( Select count(id) from Result) as tests from Visitor"
     cursor.execute(query)
     tuples = cursor.fetchone()
     v = Statistics()
-    v.visitor = tuples["visitors"]
-    v.test = tuples["tests"]
+    v.visitors = tuples["visitors"]
+    v.tests = tuples["tests"]
     return dumps(v, unpicklable=False)
 
 @app.route("/distributions/<lang>/")
@@ -216,7 +216,7 @@ def newVisitor(lang: str):
     query = "Insert into Visitor (visitDate, userAgent, referrer, lang, prerender) VALUES (%s, %s, %s, %s, %s)"
     visitDate = datetime.now()
     userAgent = request.headers.get("user-agent")
-    referrer = request.headers.get("referrer")
+    referrer = visitorData["referrer"]
     prerender = visitorData["prerender"]
     got = cursor.execute(query, (
       visitDate,
