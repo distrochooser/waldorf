@@ -1,6 +1,6 @@
 from flask import Flask, Response, request, abort
 from functools import wraps
-from core.classes import Visitor, Tag, Result, Distro, Question, Answer
+from core.classes import Visitor, Tag, Result, Distro, Question, Answer, Statistics
 import argparse
 import pymysql.cursors
 from datetime import datetime
@@ -65,6 +65,16 @@ def queryDistributions(lang: str):
       result.append(d)        
   return result
 
+@app.route("/stats/")
+def getStats():
+  with database.cursor() as cursor:
+    query = "Select count(id) as visitors, ( Select count(id) from Result) as tests from Visitor"
+    cursor.execute(query)
+    tuples = cursor.fetchone()
+    v = Statistics()
+    v.visitor = tuples["visitors"]
+    v.test = tuples["tests"]
+    return dumps(v, unpicklable=False)
 
 @app.route("/distributions/<lang>/")
 @checkLanguage

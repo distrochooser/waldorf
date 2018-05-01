@@ -11,7 +11,10 @@ class Base():
           setattr(self, key, (False, True)[value == 1])
         else:
           setattr(self, key, value)
-     
+
+class Statistics():
+  test: int = 0
+  visitor: int = 0
 
 class Visitor():
   """
