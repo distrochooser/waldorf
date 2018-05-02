@@ -1,4 +1,4 @@
-from flask import Flask, Response, request, abort
+from flask import Flask, Response, request, abort, g
 from functools import wraps
 from core.classes import Visitor, Tag, Result, Distro, Question, Answer, Statistics
 import argparse
@@ -18,14 +18,23 @@ CORS(app)
 Compress(app)
 allowLanguages = args.langs.split(",")
 
-database = pymysql.connect(
-  host="localhost",
-  user="root",
-  password=environ["PASS"],
-  db="ldc4",
-  charset="utf8",
-  cursorclass=pymysql.cursors.DictCursor
-)
+@app.before_request
+def before_request():
+  database = pymysql.connect(
+    host="localhost",
+    user="root",
+    password=environ["PASS"],
+    db="ldc4",
+    charset="utf8",
+    cursorclass=pymysql.cursors.DictCursor
+  )
+  g.database = database
+
+@app.after_request
+def after_request(response):
+  if g.database is not None:
+    g.database.close()
+  return response
 
 def checkLanguage(f):
   @wraps(f)
@@ -39,8 +48,8 @@ def checkLanguage(f):
 @app.route("/distributions/<lang>/<id>/")
 @checkLanguage
 def getDistribution(lang: str, id: int):
-  with database.cursor() as cursor:
-    query = "Select *, (Select translation from i18n where langCode = %s and val = concat('d.', Distro.id, '.description')) as description from Distro where id = %s"
+  with g.database.cursor() as cursor:
+    query = "Selexct *, (Select translation from i18n where langCode = %s and val = concat('d.', Distro.id, '.description')) as description from Distro where id = %s"
     cursor.execute(query, (
       lang,
       id
@@ -53,7 +62,7 @@ def getDistribution(lang: str, id: int):
 
 def queryDistributions(lang: str):
   result = []
-  with database.cursor() as cursor:
+  with g.database.cursor() as cursor:
     query = "Select *, (Select translation from i18n where langCode = %s and val = concat('d.', Distro.id, '.description')) as description from Distro"
     cursor.execute(query, (
       lang
@@ -67,7 +76,7 @@ def queryDistributions(lang: str):
 
 @app.route("/stats")
 def getStats():
-  with database.cursor() as cursor:
+  with g.database.cursor() as cursor:
     query = "Select count(id) as visitors, ( Select count(id) from Result) as tests from Visitor"
     cursor.execute(query)
     tuples = cursor.fetchone()
@@ -83,7 +92,7 @@ def getDistributions(lang: str):
 
 def getAnswersForQuestion(lang: str, question:id ) -> list():
   result = []
-  with database.cursor() as cursor:
+  with g.database.cursor() as cursor:
     query = "Select * from Answer where questionID = %s"
     cursor.execute(query,  (
       question
@@ -108,7 +117,7 @@ def getAnswersForQuestion(lang: str, question:id ) -> list():
 
 def queryQuestions(lang: str):
   result = []
-  with database.cursor() as cursor:
+  with g.database.cursor() as cursor:
     query = "Select * from Question order by orderIndex"
     cursor.execute(query)
     tuples = cursor.fetchall()
@@ -141,7 +150,7 @@ def getQuestions(lang: str):
 @app.route("/addresult/<lang>/<rating>/<visitor>/", methods=["POST"])
 def addResult(lang: str, rating: int, visitor: int):
   body = request.get_json(silent=True)
-  with database.cursor() as cursor:
+  with g.database.cursor() as cursor:
     query = "Insert into Result (rating, visitorId, lang) values (%s, %s, %s)"
     cursor.execute(query, (
       rating,
@@ -165,23 +174,23 @@ def addResult(lang: str, rating: int, visitor: int):
         tag["negative"],
         tag["amount"]
       ))
-    database.commit() 
+    g.database.commit() 
   return str(resultId)
 
 @app.route("/addrating/<test>/<rating>")
 def addRating(test: int, rating: int):
-  with database.cursor() as cursor:
+  with g.database.cursor() as cursor:
     query = "Update Result set rating=%s, updated=1 where id=%s and updated =0"
     got = cursor.execute(query, (
       rating,
       test
     ))
-    database.commit()
+    g.database.commit()
     return dumps(got)
 
 @app.route("/getresult/<id>/")
 def getResult(id: int):
-  with database.cursor() as cursor:
+  with g.database.cursor() as cursor:
     query = "Select * from ResultAnswers  where resultId = %s"
     cursor.execute(query, (
       id
@@ -211,7 +220,7 @@ def getResult(id: int):
 @app.route("/get/<lang>/", methods=["POST"])
 @checkLanguage
 def newVisitor(lang: str):
-  with database.cursor() as cursor:
+  with g.database.cursor() as cursor:
     visitorData = request.get_json(silent=True)
     query = "Insert into Visitor (visitDate, userAgent, referrer, lang, prerender) VALUES (%s, %s, %s, %s, %s)"
     visitDate = datetime.now()
@@ -242,7 +251,7 @@ def newVisitor(lang: str):
     for tuple in results:
       v.i18n[tuple["val"]] = tuple
 
-    database.commit()
+    g.database.commit()
   return dumps(v, unpicklable=False)
 
 
@@ -268,11 +277,8 @@ def addCors(response: Response):
       response.headers.add(key, value)
   return response
 
-try:
-  app.run(
-    host="0.0.0.0",
-    port=8181,
-    debug=False
-  )
-finally:
-  database.close()
+app.run(
+  host="0.0.0.0",
+  port=8181,
+  debug=False
+)
